@@ -173,3 +173,31 @@ All platforms above support custom domains. General steps:
 - **API key safety:** The Gemini API key is stored in the user's browser `localStorage`. It is never included in the HTML file and is not visible in your repository. Each user enters their own key through the in-app settings modal.
 - **HTTPS:** Always serve the app over HTTPS in production. All platforms above enforce HTTPS by default.
 - **CSP:** The app ships with a `Content-Security-Policy` meta tag that restricts `connect-src` to only the APIs the app uses. Do not remove or loosen it.
+
+---
+
+## Vercel AI proxy (multi-user mode)
+
+When deployed to Vercel, the app uses a layered AI-access strategy so visitors don't need to bring their own Gemini key just to try the app:
+
+1. **User-supplied key** (in-app ⚙ AI Settings modal) — recommended, gives the user their own full 1500/day Gemini free quota.
+2. **`config.js` key** — local-dev convenience only; not committed.
+3. **Server-side proxy at `/api/gemini`** — fallback for visitors who haven't set their own key. Uses the deployment's `GEMINI_API_KEY` env var.
+
+The Edge function lives at `api/gemini.js`. Vercel auto-detects it on deploy. To enable the proxy fallback:
+
+1. Open your Vercel project → **Settings → Environment Variables**.
+2. Add a new variable:
+   - **Key:** `GEMINI_API_KEY`
+   - **Value:** your Gemini key from [Google AI Studio](https://aistudio.google.com/app/apikey)
+   - **Environment:** Production (and Preview if you want preview deploys to work)
+3. Click **Save**, then **Redeploy** (Deployments → ⋯ → Redeploy) so the env var is bound to a new build.
+
+The function will return `503` if the env var is unset — the frontend treats that as "AI unavailable" and shows the corresponding status in the settings modal. So you can ship the code without the env var and add it later.
+
+### Cost / abuse warning
+
+Every anonymous request hits the same key and draws from the same 1500/day quota. To protect the key:
+- In Google AI Studio, restrict the key to specific HTTP referers if it ever leaks (the key only travels server-to-server in the proxy path, so it's invisible to browser DevTools — but rotation hygiene still matters).
+- Watch the AI Studio dashboard. If you start seeing abuse, the easiest mitigation is to remove the env var (proxy returns 503, and the app degrades gracefully) and rely on per-user keys only.
+- Long-term: add IP-based rate limiting via Vercel KV or Upstash Redis. Out of scope for the initial implementation.

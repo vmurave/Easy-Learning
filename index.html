@@ -119,6 +119,74 @@
     .reminders-btn[aria-pressed="true"]:active { transform: scale(.95); }
     .reminders-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 
+    /* AI Settings modal */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(17,24,39,.55);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1000;
+      padding: 1rem;
+      animation: modalFadeIn .12s ease-out;
+    }
+    @keyframes modalFadeIn { from { opacity: 0 } to { opacity: 1 } }
+    .modal-content {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      max-width: 480px;
+      width: 100%;
+      box-shadow: var(--shadow-lg);
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: .85rem;
+    }
+    .modal-title { font-size: 1.2rem; font-weight: 700; color: var(--primary-hover); }
+    .modal-close {
+      background: transparent; border: none;
+      font-size: 1.7rem; line-height: 1; cursor: pointer;
+      color: var(--text-muted); padding: 0 .35rem;
+    }
+    .modal-close:hover { color: var(--text); }
+    .modal-desc { color: var(--text-muted); margin-bottom: 1rem; line-height: 1.45; }
+    .modal-label {
+      display: block; font-size: .85rem; font-weight: 600;
+      margin-bottom: .35rem; color: var(--text);
+    }
+    .modal-content input[type="password"],
+    .modal-content input[type="text"] {
+      width: 100%;
+      padding: .65rem .85rem;
+      border: 2px solid var(--border); border-radius: 8px;
+      font-size: 1rem;
+      font-family: 'SF Mono', Menlo, Consolas, monospace;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .modal-content input:focus { border-color: var(--primary); }
+    .modal-hint { margin-top: .65rem; font-size: .85rem; }
+    .modal-hint a {
+      color: var(--primary); text-decoration: none; font-weight: 500;
+    }
+    .modal-hint a:hover { text-decoration: underline; }
+    .modal-status {
+      padding: .55rem .85rem;
+      border-radius: 8px;
+      font-size: .85rem;
+      margin-bottom: 1rem;
+      font-weight: 500;
+    }
+    .modal-status.own  { background: #ECFDF5; color: #065F46; border: 1px solid #6EE7B7; }
+    .modal-status.proxy { background: #FEF3C7; color: #78350F; border: 1px solid #F59E0B; }
+    .modal-status.none  { background: #FEF2F2; color: #991B1B; border: 1px solid #FCA5A5; }
+    .modal-actions {
+      display: flex; gap: .5rem; flex-wrap: wrap;
+      margin-top: 1.25rem;
+      justify-content: flex-end;
+    }
+
     /* In-app reminder banner shown when the app is opened during 9/17/21
        windows and OS-level scheduling isn't available. */
     .inapp-reminder {
@@ -653,6 +721,12 @@
               aria-pressed="false"
               title="Enable daily reminders at 9:00, 17:00, 21:00"
               onclick="toggleReminders()">🔕</button>
+      <button id="ai-settings-btn" class="reminders-btn"
+              data-i18n-aria="aiBtnAria"
+              data-i18n-title="aiBtnTitle"
+              aria-label="AI Settings"
+              title="AI Settings (Gemini API key)"
+              onclick="openAiSettings()">⚙</button>
       <nav aria-label="Main navigation">
         <button id="nav-learn"   class="active" onclick="showView('learn')"   aria-current="page" data-i18n="navFlashcard">Flashcard mode</button>
         <span class="sub-divider" id="sub-divider" aria-hidden="true"></span>
@@ -810,6 +884,38 @@
 </main>
 
 <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<!-- AI Settings modal — paste your own Gemini API key for unlimited AI features.
+     When empty, the app falls back to the Vercel proxy at /api/gemini (which
+     uses the deployment's GEMINI_API_KEY env var, shared across all visitors). -->
+<div id="ai-settings-modal" class="modal-overlay" role="dialog" aria-modal="true"
+     aria-labelledby="ai-settings-title" style="display:none"
+     onclick="if(event.target===this) closeAiSettings()">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="ai-settings-title" class="modal-title" data-i18n="aiSettingsTitle">AI Settings</h2>
+      <button class="modal-close" onclick="closeAiSettings()"
+              data-i18n-aria="aiModalCloseAria"
+              aria-label="Close settings">×</button>
+    </div>
+    <p class="modal-desc" data-i18n="aiSettingsDesc">
+      Add your own free Gemini API key for unlimited AI features. Without one, the app uses a shared free quota that may be rate-limited.
+    </p>
+    <div class="modal-status" id="ai-settings-status" aria-live="polite"></div>
+    <label class="modal-label" for="ai-key-input" data-i18n="aiKeyLabel">Gemini API key</label>
+    <input id="ai-key-input" type="password" autocomplete="off" spellcheck="false"
+           placeholder="AIza…" maxlength="80" />
+    <p class="modal-hint">
+      <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener"
+         data-i18n="aiGetKey">Get a free key at Google AI Studio →</a>
+    </p>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="saveAiKey()" data-i18n="aiSaveBtn">Save</button>
+      <button class="btn btn-ghost"   onclick="clearAiKey()" data-i18n="aiClearBtn">Clear</button>
+      <button class="btn btn-ghost"   onclick="closeAiSettings()" data-i18n="aiCloseBtn">Close</button>
+    </div>
+  </div>
+</div>
 
 <!-- Local config: copy config.example.js → config.js and add your Gemini API key.
      config.js is git-ignored so the key never reaches the repo.
@@ -1194,6 +1300,24 @@ const I18N = {
     inAppReminderMsg: 'Time for a quick learning session! Open a card below to keep your streak going.',
     remindersBackendNotConfigured: 'Push backend not configured. See worker/README.md for setup.',
     remindersSubscribeFailed: 'Could not subscribe to push. Check that the backend is deployed and reachable.',
+    // AI settings modal
+    aiBtnAria: 'Open AI settings',
+    aiBtnTitle: 'AI Settings (Gemini API key)',
+    aiModalCloseAria: 'Close AI settings',
+    aiSettingsTitle: 'AI Settings',
+    aiSettingsDesc: 'Add your own free Gemini API key for unlimited AI features. Without one, the app uses a shared free quota that may be rate-limited.',
+    aiKeyLabel: 'Gemini API key',
+    aiGetKey: 'Get a free key at Google AI Studio →',
+    aiSaveBtn: 'Save',
+    aiClearBtn: 'Clear',
+    aiCloseBtn: 'Close',
+    aiKeySaved: 'API key saved. AI features now use your own quota.',
+    aiKeyCleared: 'API key cleared. Falling back to the shared proxy.',
+    aiKeyInvalid: 'That doesn\'t look like a valid Gemini API key. Keys start with "AIza" and are ~39 characters.',
+    aiStatusOwn:   '✓ Using your own Gemini key — full quota, no sharing.',
+    aiStatusProxy: '⚠ Using the shared free proxy. Add your own key for unlimited usage.',
+    aiStatusDev:   '✓ Using local config.js key (development).',
+    aiStatusNone:  '✗ No AI configured. Add your own key, or open the deployed site to use the shared proxy.',
   },
 
   de: {
@@ -1395,6 +1519,24 @@ const I18N = {
     inAppReminderMsg: 'Zeit für eine kurze Lerneinheit! Öffne unten eine Karteikarte, um deine Lernsträhne aufrechtzuerhalten.',
     remindersBackendNotConfigured: 'Push-Backend nicht konfiguriert. Siehe worker/README.md für die Einrichtung.',
     remindersSubscribeFailed: 'Push-Abonnement fehlgeschlagen. Prüfe, ob das Backend bereitgestellt und erreichbar ist.',
+    // KI-Einstellungen
+    aiBtnAria: 'KI-Einstellungen öffnen',
+    aiBtnTitle: 'KI-Einstellungen (Gemini API-Schlüssel)',
+    aiModalCloseAria: 'KI-Einstellungen schließen',
+    aiSettingsTitle: 'KI-Einstellungen',
+    aiSettingsDesc: 'Füge deinen eigenen kostenlosen Gemini API-Schlüssel hinzu für unbegrenzte KI-Funktionen. Ohne Schlüssel nutzt die App ein geteiltes Kontingent, das gedrosselt sein kann.',
+    aiKeyLabel: 'Gemini API-Schlüssel',
+    aiGetKey: 'Kostenlosen Schlüssel bei Google AI Studio holen →',
+    aiSaveBtn: 'Speichern',
+    aiClearBtn: 'Löschen',
+    aiCloseBtn: 'Schließen',
+    aiKeySaved: 'API-Schlüssel gespeichert. KI-Funktionen nutzen jetzt dein eigenes Kontingent.',
+    aiKeyCleared: 'API-Schlüssel gelöscht. Es wird auf den geteilten Proxy zurückgegriffen.',
+    aiKeyInvalid: 'Das sieht nicht wie ein gültiger Gemini API-Schlüssel aus. Schlüssel beginnen mit „AIza" und sind ~39 Zeichen lang.',
+    aiStatusOwn:   '✓ Verwende deinen eigenen Gemini-Schlüssel — volles Kontingent, kein Teilen.',
+    aiStatusProxy: '⚠ Verwende den geteilten kostenlosen Proxy. Füge deinen eigenen Schlüssel hinzu für unbegrenzte Nutzung.',
+    aiStatusDev:   '✓ Lokaler config.js-Schlüssel (Entwicklung).',
+    aiStatusNone:  '✗ Keine KI konfiguriert. Füge deinen eigenen Schlüssel hinzu oder öffne die bereitgestellte Seite, um den geteilten Proxy zu nutzen.',
   },
 };
 
@@ -1526,6 +1668,54 @@ let _pendingAdd = { word: '', variants: [] };
 const _geminiKey = (typeof window !== 'undefined' && typeof window.GEMINI_API_KEY === 'string')
   ? window.GEMINI_API_KEY.trim()
   : '';
+
+// ─── Gemini access strategy ───────────────────────────────────────────────
+// Three sources, in priority order:
+//   1. User-supplied key in localStorage (entered via the ⚙ AI Settings
+//      modal). Recommended for production users — each user gets their own
+//      free Google AI Studio quota.
+//   2. config.js key (window.GEMINI_API_KEY). Local-dev convenience; not
+//      committed.
+//   3. Server-side proxy at PROXY_ENDPOINT (Vercel /api/gemini), which
+//      forwards to Gemini using the deployment's GEMINI_API_KEY env var.
+//      Fallback for visitors who haven't set their own key. Returns 503
+//      when the env var is not configured.
+
+const PROXY_ENDPOINT = '/api/gemini';
+
+function getUserGeminiKey() {
+  try { return (localStorage.getItem('el20_geminiKey') || '').trim(); }
+  catch (_) { return ''; }
+}
+
+function isLocalDev() {
+  if (typeof location === 'undefined') return false;
+  const h = location.hostname;
+  return h === 'localhost' || h === '127.0.0.1' || h === '' || h.endsWith('.local');
+}
+
+/**
+ * Returns true if any AI path is at least plausibly available. Used to
+ * decide whether to attempt AI calls / show "AI required" gates.
+ *
+ * On localhost: requires an actual key (user or config.js). The proxy isn't
+ * served by Python http.server, so we shouldn't pretend it might work there.
+ * In production: assume proxy is available; the worst case is a 503 that
+ * callGemini handles by returning null.
+ */
+function aiAvailable() {
+  if (getUserGeminiKey()) return true;
+  if (_geminiKey) return true;
+  return !isLocalDev();
+}
+
+/** Returns the active AI source label for the settings status indicator. */
+function aiSourceLabel() {
+  if (getUserGeminiKey()) return 'own';     // user-provided key
+  if (!isLocalDev())      return 'proxy';   // server-side proxy
+  if (_geminiKey)         return 'dev';     // local config.js
+  return 'none';
+}
 
 // ─── Persistence ─────────────────────────────────────────────────────────────
 //
@@ -1864,6 +2054,79 @@ async function registerServiceWorker() {
   }
 }
 
+// ─── AI Settings modal ─────────────────────────────────────────────────────
+
+function openAiSettings() {
+  const modal = document.getElementById('ai-settings-modal');
+  const input = document.getElementById('ai-key-input');
+  if (!modal || !input) return;
+  input.value = getUserGeminiKey();
+  modal.style.display = 'flex';
+  updateAiStatus();
+  setTimeout(() => input.focus(), 50);
+}
+
+function closeAiSettings() {
+  const modal = document.getElementById('ai-settings-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function saveAiKey() {
+  const input = document.getElementById('ai-key-input');
+  if (!input) return;
+  const key = input.value.trim();
+  if (!key) {
+    // Empty save behaves like Clear
+    clearAiKey();
+    return;
+  }
+  if (!/^[A-Za-z0-9_-]{20,80}$/.test(key)) {
+    showToast(t('aiKeyInvalid'));
+    return;
+  }
+  try { localStorage.setItem('el20_geminiKey', key); } catch (_) { /* storage full / disabled */ }
+  showToast(t('aiKeySaved'));
+  updateAiStatus();
+  closeAiSettings();
+}
+
+function clearAiKey() {
+  try { localStorage.removeItem('el20_geminiKey'); } catch (_) {}
+  const input = document.getElementById('ai-key-input');
+  if (input) input.value = '';
+  showToast(t('aiKeyCleared'));
+  updateAiStatus();
+}
+
+/** Refreshes the colored status banner inside the modal. */
+function updateAiStatus() {
+  const el = document.getElementById('ai-settings-status');
+  if (!el) return;
+  const src = aiSourceLabel();
+  el.classList.remove('own', 'proxy', 'none');
+  if (src === 'own') {
+    el.classList.add('own');
+    el.textContent = t('aiStatusOwn');
+  } else if (src === 'proxy') {
+    el.classList.add('proxy');
+    el.textContent = t('aiStatusProxy');
+  } else if (src === 'dev') {
+    el.classList.add('own');
+    el.textContent = t('aiStatusDev');
+  } else {
+    el.classList.add('none');
+    el.textContent = t('aiStatusNone');
+  }
+}
+
+// Close the modal on Escape key.
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const modal = document.getElementById('ai-settings-modal');
+    if (modal && modal.style.display !== 'none') closeAiSettings();
+  }
+});
+
 /** Converts a base64url-encoded VAPID public key to the Uint8Array form
  *  required by PushManager.subscribe → applicationServerKey. */
 function urlBase64ToUint8Array(base64) {
@@ -2034,7 +2297,7 @@ function relTime(date) {
  */
 async function fetchExample(word) {
   // Gemini path
-  if (_geminiKey) {
+  if (aiAvailable()) {
     const raw = await callGemini(
       `Write one natural ${currentPair.sourceName} example sentence (B2 level) for the word "${word}".` +
       ` Respond with ONLY the sentence, no quotes, no explanation.`
@@ -2072,7 +2335,7 @@ async function fetchExample(word) {
  */
 async function fetchExamples(word, max = 3) {
   // Gemini path — generate tailored B2-level examples
-  if (_geminiKey) {
+  if (aiAvailable()) {
     const raw = await callGemini(
       `Generate ${max} natural ${currentPair.sourceName} example sentences (B2 level) for the word "${word}".` +
       ` Each sentence must clearly demonstrate the word\'s meaning.` +
@@ -2152,8 +2415,20 @@ const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models
  * @returns {Promise<string|null>}
  */
 async function callGemini(prompt, opts = {}) {
-  if (!_geminiKey) return null;
-  const url  = `${GEMINI_ENDPOINT}?key=${encodeURIComponent(_geminiKey)}`;
+  if (!aiAvailable()) return null;
+
+  // Resolve endpoint per priority order. The user key wins, then the
+  // config.js dev key, then the server-side proxy.
+  const userKey = getUserGeminiKey();
+  let url;
+  if (userKey) {
+    url = `${GEMINI_ENDPOINT}?key=${encodeURIComponent(userKey)}`;
+  } else if (aiAvailable()) {
+    url = `${GEMINI_ENDPOINT}?key=${encodeURIComponent(_geminiKey)}`;
+  } else {
+    url = PROXY_ENDPOINT;
+  }
+
   const generationConfig = { temperature: 0.2, maxOutputTokens: 2048 };
   if (opts.json) generationConfig.responseMimeType = 'application/json';
   const body = JSON.stringify({
@@ -2172,7 +2447,8 @@ async function callGemini(prompt, opts = {}) {
         const data = await res.json();
         return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
       }
-      // Retry only transient throttling/overload errors
+      // Retry only transient throttling/overload errors. 503 from the proxy
+      // when the env var is missing is also non-retryable.
       if (attempt === 0 && (res.status === 429 || res.status === 503)) {
         await new Promise(r => setTimeout(r, 1500));
         continue;
@@ -2258,7 +2534,7 @@ async function fetchTranslationVariants(word) {
 
   // 2. Gemini AI — when a key is configured, ask for distinct meanings.
   // Gemini gives clean, deduped variants which MyMemory often cannot.
-  if (_geminiKey) {
+  if (aiAvailable()) {
     try {
       const raw = await callGemini(
         `List up to 6 distinct ${currentPair.targetName} translations of the ${currentPair.sourceName} word "${word}". ` +
@@ -2653,7 +2929,7 @@ async function handleKnow() {
     // overrule a local match, otherwise a valid answer like a single word
     // from a comma-separated reference gets wrongly marked red.
     // Generated by GitHub Copilot
-    if (_geminiKey && !correct) {
+    if (aiAvailable() && !correct) {
       if (knowBtn) { knowBtn.disabled = true; }
       const raw = await callGemini(
         `You are evaluating a language learner's ${currentPair.targetName} translation of a ${currentPair.sourceName} word.\n` +
@@ -2755,7 +3031,7 @@ async function checkSentence(word, knownExample) {
   // LanguageTool is the no-key fallback; it is rule-based so it misses some
   // syntactic and semantic mistakes (e.g. "can trying", "do it correct").
   // Generated by GitHub Copilot
-  if (_geminiKey) {
+  if (aiAvailable()) {
     const raw = await callGemini(
       `You are a ${currentPair.sourceName} teacher reviewing a sentence written by a ${currentPair.targetSpeaker} learner.\n` +
       `Target word: "${word.english}"\n` +
@@ -3461,7 +3737,7 @@ async function generateTopicContent() {
     errEl.style.display = 'block';
     return;
   }
-  if (!_geminiKey) {
+  if (!aiAvailable()) {
     errEl.textContent  = 'AI key is not configured. Add it to config.js (see README) to use Thematic Learning.';
     errEl.style.display = 'block';
     return;
@@ -3857,7 +4133,7 @@ function fuzzyMatch(a, b) {
  */
 async function generateTopicReading() {
   const host = document.getElementById('topic-reading');
-  if (!_geminiKey) { showToast(t('readingNeedsKey')); return; }
+  if (!aiAvailable()) { showToast(t('readingNeedsKey')); return; }
   if (topicState.selected.size === 0) {
     showToast(t('readingSelectAtLeastOne'));
     return;
