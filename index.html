@@ -2162,41 +2162,77 @@ async function testAiConnection() {
     label = 'proxy';
   }
 
-  const body = JSON.stringify({
-    contents: [{ parts: [{ text: 'Reply with the single word OK and nothing else.' }] }],
-    generationConfig: { temperature: 0, maxOutputTokens: 2048 },
-  });
-
+  // ─── Test 1: simple ping (probes endpoint reachability + auth) ────────
+  let simpleStatus, simpleMsg;
   try {
     const res = await fetch(url, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body,
+      body:    JSON.stringify({
+        contents: [{ parts: [{ text: 'Reply with the single word OK and nothing else.' }] }],
+        generationConfig: { temperature: 0, maxOutputTokens: 2048 },
+      }),
     });
     const text = await res.text();
     let data = null;
-    try { data = JSON.parse(text); } catch (_) { /* not JSON */ }
+    try { data = JSON.parse(text); } catch (_) {}
     const aiText = data && data.candidates && data.candidates[0] &&
                    data.candidates[0].content && data.candidates[0].content.parts &&
                    data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
-
     if (res.ok && aiText) {
-      out.className = 'modal-status own';
-      out.textContent = `✓ HTTP ${res.status} via ${label}. Response: "${String(aiText).slice(0, 60)}"`;
+      simpleStatus = 'ok';
+      simpleMsg    = `✓ Simple: HTTP ${res.status} via ${label} → "${String(aiText).slice(0, 30)}"`;
     } else if (res.ok) {
-      // 200 but no text content — likely MAX_TOKENS truncation
+      simpleStatus = 'warn';
       const finish = data && data.candidates && data.candidates[0] && data.candidates[0].finishReason;
-      out.className = 'modal-status proxy';
-      out.textContent = `⚠ HTTP ${res.status} via ${label}, but no text in response (finishReason=${finish || 'unknown'}). Body: ${text.slice(0, 200)}`;
+      simpleMsg    = `⚠ Simple: HTTP ${res.status} via ${label}, empty response (finishReason=${finish || 'unknown'})`;
     } else {
-      out.className = 'modal-status none';
-      out.textContent = `✗ HTTP ${res.status} via ${label}. Body: ${text.slice(0, 300)}`;
+      simpleStatus = 'bad';
+      simpleMsg    = `✗ Simple: HTTP ${res.status} via ${label}. ${text.slice(0, 120)}`;
     }
   } catch (e) {
-    out.className = 'modal-status none';
-    // Common failure modes: CSP blocked the request, network down, CORS issue.
-    out.textContent = `✗ Request failed before reaching ${label}: ${e && e.message}. Often a CSP block, network filter, or service-worker cache. Check DevTools Console for "Refused to connect" errors.`;
+    simpleStatus = 'bad';
+    simpleMsg    = `✗ Simple: request failed: ${e && e.message}`;
   }
+
+  // ─── Test 2: full callGemini() with a Thematic-style prompt ────────────
+  // Mirrors exactly what Thematic mode does. Catches code-version mismatches
+  // (e.g. browser still on the old 2048-token budget that truncates JSON).
+  out.textContent = t('aiTestRunning') + '  (running complex test…)';
+  let complexStatus, complexMsg;
+  const complexPrompt =
+    'Generate exactly 5 short English business phrases with Russian translations. ' +
+    'Reply with ONLY a JSON array, e.g. ' +
+    '[{"en":"phrase","ru":"перевод"}, ...] — no markdown, no commentary.';
+  try {
+    const t0 = Date.now();
+    const raw = await callGemini(complexPrompt, { json: true });
+    const dt  = Date.now() - t0;
+    if (raw == null) {
+      complexStatus = 'bad';
+      complexMsg    = `✗ Complex: callGemini returned null (${dt}ms). Backend works but the page's callGemini code path failed.`;
+    } else {
+      const arr = parseGeminiJSON(raw);
+      if (Array.isArray(arr) && arr.length > 0) {
+        complexStatus = 'ok';
+        complexMsg    = `✓ Complex: parsed ${arr.length} items via callGemini (${dt}ms, ${raw.length} chars).`;
+      } else {
+        complexStatus = 'warn';
+        complexMsg    = `⚠ Complex: got ${raw.length} chars but couldn't parse as array. Preview: ${raw.slice(0, 150)}`;
+      }
+    }
+  } catch (e) {
+    complexStatus = 'bad';
+    complexMsg    = `✗ Complex: threw error: ${e && e.message}`;
+  }
+
+  // ─── Combined report ────────────────────────────────────────────────────
+  // Worst status wins the banner color.
+  const overall = (simpleStatus === 'bad' || complexStatus === 'bad') ? 'none'
+                : (simpleStatus === 'warn' || complexStatus === 'warn') ? 'proxy'
+                : 'own';
+  out.className = 'modal-status ' + overall;
+  out.innerHTML = `${esc(simpleMsg)}<br>${esc(complexMsg)}`;
 }
 
 /** Converts a base64url-encoded VAPID public key to the Uint8Array form
