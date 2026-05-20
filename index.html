@@ -914,6 +914,10 @@
       <button class="btn btn-ghost"   onclick="clearAiKey()" data-i18n="aiClearBtn">Clear</button>
       <button class="btn btn-ghost"   onclick="closeAiSettings()" data-i18n="aiCloseBtn">Close</button>
     </div>
+    <hr style="margin: 1.25rem 0 1rem; border: 0; border-top: 1px solid var(--border);" />
+    <button class="btn btn-ghost" style="width:100%" onclick="testAiConnection()"
+            data-i18n="aiTestBtn">Test connection</button>
+    <div id="ai-test-result" class="modal-status" style="display:none; margin-top: .65rem;"></div>
   </div>
 </div>
 
@@ -1318,6 +1322,8 @@ const I18N = {
     aiStatusProxy: '⚠ Using the shared free proxy. Add your own key for unlimited usage.',
     aiStatusDev:   '✓ Using local config.js key (development).',
     aiStatusNone:  '✗ No AI configured. Add your own key, or open the deployed site to use the shared proxy.',
+    aiTestBtn: 'Test connection',
+    aiTestRunning: '⏳ Calling the AI endpoint…',
   },
 
   de: {
@@ -1537,6 +1543,8 @@ const I18N = {
     aiStatusProxy: '⚠ Verwende den geteilten kostenlosen Proxy. Füge deinen eigenen Schlüssel hinzu für unbegrenzte Nutzung.',
     aiStatusDev:   '✓ Lokaler config.js-Schlüssel (Entwicklung).',
     aiStatusNone:  '✗ Keine KI konfiguriert. Füge deinen eigenen Schlüssel hinzu oder öffne die bereitgestellte Seite, um den geteilten Proxy zu nutzen.',
+    aiTestBtn: 'Verbindung testen',
+    aiTestRunning: '⏳ Rufe den KI-Endpunkt auf…',
   },
 };
 
@@ -2126,6 +2134,70 @@ document.addEventListener('keydown', (e) => {
     if (modal && modal.style.display !== 'none') closeAiSettings();
   }
 });
+
+/**
+ * Pings the currently-active AI endpoint with a minimal prompt and reports
+ * the exact outcome inline. Useful for users (and us) to see why the proxy
+ * is or isn't responding without opening DevTools.
+ */
+async function testAiConnection() {
+  const out = document.getElementById('ai-test-result');
+  if (!out) return;
+  out.style.display = 'block';
+  out.className = 'modal-status proxy';
+  out.textContent = t('aiTestRunning');
+
+  // Resolve the same endpoint callGemini() would use, so this test mirrors
+  // the real path.
+  const userKey = getUserGeminiKey();
+  let url, label;
+  if (userKey) {
+    url = `${GEMINI_ENDPOINT}?key=${encodeURIComponent(userKey)}`;
+    label = 'own key';
+  } else if (_geminiKey) {
+    url = `${GEMINI_ENDPOINT}?key=${encodeURIComponent(_geminiKey)}`;
+    label = 'config.js key';
+  } else {
+    url = PROXY_ENDPOINT;
+    label = 'proxy';
+  }
+
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text: 'Reply with the single word OK and nothing else.' }] }],
+    generationConfig: { temperature: 0, maxOutputTokens: 2048 },
+  });
+
+  try {
+    const res = await fetch(url, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    });
+    const text = await res.text();
+    let data = null;
+    try { data = JSON.parse(text); } catch (_) { /* not JSON */ }
+    const aiText = data && data.candidates && data.candidates[0] &&
+                   data.candidates[0].content && data.candidates[0].content.parts &&
+                   data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
+
+    if (res.ok && aiText) {
+      out.className = 'modal-status own';
+      out.textContent = `✓ HTTP ${res.status} via ${label}. Response: "${String(aiText).slice(0, 60)}"`;
+    } else if (res.ok) {
+      // 200 but no text content — likely MAX_TOKENS truncation
+      const finish = data && data.candidates && data.candidates[0] && data.candidates[0].finishReason;
+      out.className = 'modal-status proxy';
+      out.textContent = `⚠ HTTP ${res.status} via ${label}, but no text in response (finishReason=${finish || 'unknown'}). Body: ${text.slice(0, 200)}`;
+    } else {
+      out.className = 'modal-status none';
+      out.textContent = `✗ HTTP ${res.status} via ${label}. Body: ${text.slice(0, 300)}`;
+    }
+  } catch (e) {
+    out.className = 'modal-status none';
+    // Common failure modes: CSP blocked the request, network down, CORS issue.
+    out.textContent = `✗ Request failed before reaching ${label}: ${e && e.message}. Often a CSP block, network filter, or service-worker cache. Check DevTools Console for "Refused to connect" errors.`;
+  }
+}
 
 /** Converts a base64url-encoded VAPID public key to the Uint8Array form
  *  required by PushManager.subscribe → applicationServerKey. */
