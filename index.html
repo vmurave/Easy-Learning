@@ -2195,35 +2195,53 @@ async function testAiConnection() {
     simpleMsg    = `✗ Simple: request failed: ${e && e.message}`;
   }
 
-  // ─── Test 2: full callGemini() with a Thematic-style prompt ────────────
-  // Mirrors exactly what Thematic mode does. Catches code-version mismatches
-  // (e.g. browser still on the old 2048-token budget that truncates JSON).
+  // ─── Test 2: same fetch the production callGemini() would make, but
+  // inlined so we can REPORT the exact status + body that came back. ──────
   out.textContent = t('aiTestRunning') + '  (running complex test…)';
   let complexStatus, complexMsg;
   const complexPrompt =
     'Generate exactly 5 short English business phrases with Russian translations. ' +
     'Reply with ONLY a JSON array, e.g. ' +
     '[{"en":"phrase","ru":"перевод"}, ...] — no markdown, no commentary.';
+  const complexUrl = url;  // same endpoint the simple test used
+  const complexBody = JSON.stringify({
+    contents: [{ parts: [{ text: complexPrompt }] }],
+    generationConfig: { temperature: 0.2, maxOutputTokens: 8192, responseMimeType: 'application/json' },
+  });
   try {
     const t0 = Date.now();
-    const raw = await callGemini(complexPrompt, { json: true });
-    const dt  = Date.now() - t0;
-    if (raw == null) {
-      complexStatus = 'bad';
-      complexMsg    = `✗ Complex: callGemini returned null (${dt}ms). Backend works but the page's callGemini code path failed.`;
-    } else {
-      const arr = parseGeminiJSON(raw);
+    const res = await fetch(complexUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: complexBody,
+    });
+    const respText = await res.text();
+    const dt = Date.now() - t0;
+    let data = null;
+    try { data = JSON.parse(respText); } catch (_) {}
+    const aiText = data && data.candidates && data.candidates[0] &&
+                   data.candidates[0].content && data.candidates[0].content.parts &&
+                   data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
+    if (res.ok && aiText) {
+      const arr = parseGeminiJSON(aiText);
       if (Array.isArray(arr) && arr.length > 0) {
         complexStatus = 'ok';
-        complexMsg    = `✓ Complex: parsed ${arr.length} items via callGemini (${dt}ms, ${raw.length} chars).`;
+        complexMsg    = `✓ Complex: HTTP ${res.status} via ${label} (${dt}ms) → parsed ${arr.length} items.`;
       } else {
         complexStatus = 'warn';
-        complexMsg    = `⚠ Complex: got ${raw.length} chars but couldn't parse as array. Preview: ${raw.slice(0, 150)}`;
+        complexMsg    = `⚠ Complex: HTTP ${res.status} via ${label} (${dt}ms), got text but didn't parse. Preview: ${String(aiText).slice(0, 120)}`;
       }
+    } else if (res.ok) {
+      const finish = data && data.candidates && data.candidates[0] && data.candidates[0].finishReason;
+      complexStatus = 'warn';
+      complexMsg    = `⚠ Complex: HTTP ${res.status} via ${label} (${dt}ms), empty content (finishReason=${finish || 'unknown'}). Body: ${respText.slice(0, 200)}`;
+    } else {
+      complexStatus = 'bad';
+      complexMsg    = `✗ Complex: HTTP ${res.status} via ${label} (${dt}ms). Body: ${respText.slice(0, 300)}`;
     }
   } catch (e) {
     complexStatus = 'bad';
-    complexMsg    = `✗ Complex: threw error: ${e && e.message}`;
+    complexMsg    = `✗ Complex: request threw (${e && e.message}). Often CSP, network, or SW.`;
   }
 
   // ─── Combined report ────────────────────────────────────────────────────
