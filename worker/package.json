@@ -1,0 +1,16 @@
+{
+  "name": "easy-learning-push",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker that sends scheduled Web Push reminders for the Easy Learning app.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy":  "wrangler deploy",
+    "dev":     "wrangler dev",
+    "tail":    "wrangler tail",
+    "kv:create": "wrangler kv namespace create SUBSCRIPTIONS && wrangler kv namespace create SUBSCRIPTIONS --preview"
+  },
+  "devDependencies": {
+    "wrangler": "^3.78.0"
+  }
+}

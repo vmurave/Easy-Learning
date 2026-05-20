@@ -1,0 +1,65 @@
+# Dependencies
+node_modules/
+
+# Production build output
+dist/
+
+# Environment files — never commit real secrets
+.env
+.env.local
+.env.*.local
+
+# Local runtime config — contains the Gemini API key, never commit
+config.js
+
+# Cloudflare Worker secrets / state
+worker/.dev.vars
+worker/.wrangler/
+worker/dist/
+worker/node_modules/
+
+# Local backups (created by the fix-it sessions, not for the repo)
+*.broken-bak
+*.pre-i18n-bak
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Thumbs.db:encdata
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# VS Code
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# JetBrains IDEs (WebStorm, IntelliJ, etc.)
+.idea/
+*.iml
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime / cache
+.cache/
+.parcel-cache/
+.eslintcache
+
+# Optional npm lock files (choose one: package-lock.json or yarn.lock)
+# yarn.lock
+
+# Editor swap files
+*.swp
+*.swo

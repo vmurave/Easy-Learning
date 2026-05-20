@@ -1,0 +1,21 @@
+name = "easy-learning-push"
+main = "src/worker.js"
+compatibility_date = "2024-09-23"
+
+# Cron: fire every hour at minute 0 (UTC). The handler then iterates all
+# subscriptions and pushes only to those whose local hour is 9, 17, or 21.
+[triggers]
+crons = ["0 * * * *"]
+
+# KV namespace for storing push subscriptions, keyed by random 16-byte hex ID.
+# Replace BOTH ids below after running:
+#   npx wrangler kv namespace create SUBSCRIPTIONS
+#   npx wrangler kv namespace create SUBSCRIPTIONS --preview
+[[kv_namespaces]]
+binding    = "SUBSCRIPTIONS"
+id         = "REPLACE_WITH_PRODUCTION_KV_ID"
+preview_id = "REPLACE_WITH_PREVIEW_KV_ID"
+
+# Secrets are set via the CLI, not committed here:
+#   npx wrangler secret put VAPID_PRIVATE_JWK   (paste the JWK JSON line)
+#   npx wrangler secret put VAPID_SUBJECT       (e.g. mailto:you@example.com)

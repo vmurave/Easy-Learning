@@ -1,0 +1,20 @@
+{
+  "name": "learning-easy",
+  "version": "1.0.0",
+  "description": "English vocabulary flashcard app with spaced repetition and AI-powered feedback via Gemini.",
+  "keywords": ["flashcards", "english", "vocabulary", "spaced-repetition", "gemini", "ai", "language-learning"],
+  "author": "",
+  "license": "MIT",
+  "scripts": {
+    "dev": "live-server --port=8080 --open=index.html --ignore=node_modules,dist,scripts",
+    "start": "npx serve -p 8080 .",
+    "build": "node scripts/build.js",
+    "preview": "npx serve -p 8080 dist"
+  },
+  "devDependencies": {
+    "live-server": "^1.2.2"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}
