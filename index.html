@@ -8,7 +8,7 @@
        img-src now allows self + data: for PWA icons and inline SVG chevrons.
        worker-src falls back to script-src 'self' which is already covered. -->
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src https://api.mymemory.translated.net https://api.datamuse.com https://api.dictionaryapi.dev https://generativelanguage.googleapis.com; img-src 'self' data:; manifest-src 'self'; object-src 'none';" />
+        content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.mymemory.translated.net https://api.datamuse.com https://api.dictionaryapi.dev https://generativelanguage.googleapis.com; img-src 'self' data:; manifest-src 'self'; object-src 'none';" />
   <title>Learning Easy — Vocabulary Flashcards</title>
 
   <!-- PWA: manifest + icons + theme tags ─────────────────────────────────── -->
@@ -2429,7 +2429,12 @@ async function callGemini(prompt, opts = {}) {
     url = PROXY_ENDPOINT;
   }
 
-  const generationConfig = { temperature: 0.2, maxOutputTokens: 2048 };
+  // Note on maxOutputTokens: the current default model (gemini-flash-latest →
+  // gemini-3.5-flash) is a "thinking" model that spends a substantial portion
+  // of the budget on internal chain-of-thought before producing actual output.
+  // 2048 was enough for the non-thinking flash; 8192 gives the thinker room
+  // to finish + emit a response. If responses keep truncating, raise further.
+  const generationConfig = { temperature: 0.2, maxOutputTokens: 8192 };
   if (opts.json) generationConfig.responseMimeType = 'application/json';
   const body = JSON.stringify({
     contents: [{ parts: [{ text: prompt }] }],
