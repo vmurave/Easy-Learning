@@ -2531,7 +2531,9 @@ async function callGemini(prompt, opts = {}) {
   let url;
   if (userKey) {
     url = `${GEMINI_ENDPOINT}?key=${encodeURIComponent(userKey)}`;
-  } else if (aiAvailable()) {
+  } else if (_geminiKey) {
+    // Local-dev convenience: config.js key. Production deployments don't
+    // have this so we fall through to the proxy below.
     url = `${GEMINI_ENDPOINT}?key=${encodeURIComponent(_geminiKey)}`;
   } else {
     url = PROXY_ENDPOINT;
