@@ -13,8 +13,8 @@ crons = ["0 * * * *"]
 #   npx wrangler kv namespace create SUBSCRIPTIONS --preview
 [[kv_namespaces]]
 binding    = "SUBSCRIPTIONS"
-id         = "REPLACE_WITH_PRODUCTION_KV_ID"
-preview_id = "REPLACE_WITH_PREVIEW_KV_ID"
+id         = "8db44a03403d4be3ac04ff98d65808da"
+preview_id = "14ef91efa1b94326ba2ed7fd6e1b8cd0"
 
 # Secrets are set via the CLI, not committed here:
 #   npx wrangler secret put VAPID_PRIVATE_JWK   (paste the JWK JSON line)
