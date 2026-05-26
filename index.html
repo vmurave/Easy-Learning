@@ -241,6 +241,11 @@
       transition: border-color .2s;
     }
     .add-form input:focus { border-color: var(--primary); }
+    .speak-btn {
+      flex: 0 0 auto; min-width: 44px; padding: .55rem .8rem;
+      font-size: 1.15rem; line-height: 1; cursor: pointer;
+    }
+    .speak-btn.speaking { background: var(--primary); color: #fff; border-color: var(--primary); }
     .error-msg { color: var(--error); font-size: .85rem; margin-top: .4rem; display: none; }
     /* word-added confirmation strip */
     .word-added {
@@ -765,6 +770,11 @@
            maxlength="60"
            aria-label="English word to add"
            onkeydown="if(event.key==='Enter')addWord()" />
+         <button class="btn btn-ghost speak-btn" id="speak-btn" type="button"
+           onclick="speakInputWord()"
+           data-i18n-aria="speakBtnAria" data-i18n-title="speakBtnTitle"
+           aria-label="Pronounce the word"
+           title="Pronounce the word">🔊</button>
          <button class="btn btn-primary" id="add-btn" onclick="addWord()" data-i18n="addBtn">Add</button>
          <button class="btn btn-ghost"   id="gen-btn" onclick="generateB2Words()"
             data-i18n="generateBtn" data-i18n-title="generateBtnTitle"
@@ -1119,6 +1129,10 @@ const I18N = {
     inputPlaceholder: 'Enter an English word…',
     inputAria: 'English word to add',
     addBtn: 'Add',
+    speakBtnAria: 'Pronounce the word',
+    speakBtnTitle: 'Pronounce the word',
+    speakBtnNoText: 'Type a word first',
+    speakBtnUnsupported: 'Speech is not available in this browser',
     generateBtn: 'Generate random words',
     generateBtnTitle: 'Fill list with random B2-level words',
 
@@ -1340,6 +1354,10 @@ const I18N = {
     inputPlaceholder: 'Deutsches Wort eingeben…',
     inputAria: 'Deutsches Wort zum Hinzufügen',
     addBtn: 'Hinzufügen',
+    speakBtnAria: 'Wort vorlesen',
+    speakBtnTitle: 'Wort vorlesen',
+    speakBtnNoText: 'Bitte zuerst ein Wort eingeben',
+    speakBtnUnsupported: 'Sprachausgabe in diesem Browser nicht verfügbar',
     generateBtn: 'Zufallswörter generieren',
     generateBtnTitle: 'Liste mit zufälligen B2-Wörtern füllen',
 
@@ -2810,6 +2828,51 @@ function setWordSource(val) {
  * Fetches 2–5 translation variants and shows a picker for the user to choose.
  * Validates input (letters/hyphens only, no duplicates).
  */
+/**
+ * Speaks the word currently typed in #word-input using the browser's
+ * SpeechSynthesis API in the active source language (en / de).
+ * Picks a matching voice when one is installed; otherwise relies on the
+ * locale tag and lets the browser fall back gracefully.
+ */
+function speakInputWord() {
+  const input = document.getElementById('word-input');
+  const btn   = document.getElementById('speak-btn');
+  if (!input || !btn) return;
+
+  const text = (input.value || '').trim();
+  if (!text) {
+    showToast(t('speakBtnNoText'));
+    input.focus();
+    return;
+  }
+
+  const synth = window.speechSynthesis;
+  if (!synth || typeof SpeechSynthesisUtterance === 'undefined') {
+    showToast(t('speakBtnUnsupported'));
+    return;
+  }
+
+  // Cancel any in-flight utterance so rapid clicks don't queue up.
+  synth.cancel();
+
+  const langTag = currentPair.sourceLang === 'de' ? 'de-DE' : 'en-US';
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang  = langTag;
+  utter.rate  = 0.9;
+  utter.pitch = 1;
+
+  const voices = synth.getVoices ? synth.getVoices() : [];
+  const match  = voices.find(v => v.lang && v.lang.toLowerCase() === langTag.toLowerCase())
+              || voices.find(v => v.lang && v.lang.toLowerCase().startsWith(currentPair.sourceLang));
+  if (match) utter.voice = match;
+
+  const reset = () => btn.classList.remove('speaking');
+  utter.onend = reset;
+  utter.onerror = reset;
+  btn.classList.add('speaking');
+  synth.speak(utter);
+}
+
 async function addWord() {
   const input  = document.getElementById('word-input');
   const errEl  = document.getElementById('add-error');
