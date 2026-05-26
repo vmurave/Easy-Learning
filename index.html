@@ -274,6 +274,25 @@
     .wa-en   { font-weight: 700; color: var(--primary); }
     .wa-arrow{ color: var(--text-muted); }
     .wa-ru   { font-weight: 600; color: var(--secondary); font-size: 1rem; }
+    /* Editable confirmation row (post-translation) */
+    .confirm-head {
+      display: flex; align-items: center; gap: .55rem; flex-wrap: wrap; width: 100%;
+    }
+    .edit-tr-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 32px; height: 32px; padding: 0 .45rem;
+      background: #fff; border: 1px solid var(--border); border-radius: 6px;
+      font-size: 1rem; line-height: 1; cursor: pointer;
+      transition: background .15s, color .15s, border-color .15s;
+    }
+    .edit-tr-btn:hover { background: var(--secondary); color: #fff; border-color: var(--secondary); }
+    .edit-tr-btn:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+    .edit-tr-input {
+      flex: 1; min-width: 160px; padding: .4rem .7rem;
+      border: 2px solid #C7D2FE; border-radius: 8px; font-size: .95rem; outline: none;
+    }
+    .edit-tr-input:focus { border-color: var(--primary); }
+    .edit-tr-save, .edit-tr-cancel { padding: .4rem .9rem; font-size: .9rem; }
     /* translation variant picker */
     .trans-picker-label {
       font-size: .82rem; font-weight: 600; color: var(--text-muted);
@@ -1144,6 +1163,11 @@ const I18N = {
     inputPlaceholder: 'Enter an English word…',
     inputAria: 'English word to add',
     addBtn: 'Add',
+    saveBtn: 'Save',
+    cancelBtn: 'Cancel',
+    editTransAria: 'Edit translation',
+    editTransTitle: 'Edit translation',
+    translationUpdated: 'Translation updated',
     speakBtnAria: 'Pronounce the word',
     speakBtnTitle: 'Pronounce the word',
     speakBtnNoText: 'Type a word first',
@@ -1369,6 +1393,11 @@ const I18N = {
     inputPlaceholder: 'Deutsches Wort eingeben…',
     inputAria: 'Deutsches Wort zum Hinzufügen',
     addBtn: 'Hinzufügen',
+    saveBtn: 'Speichern',
+    cancelBtn: 'Abbrechen',
+    editTransAria: 'Übersetzung bearbeiten',
+    editTransTitle: 'Übersetzung bearbeiten',
+    translationUpdated: 'Übersetzung aktualisiert',
     speakBtnAria: 'Wort vorlesen',
     speakBtnTitle: 'Wort vorlesen',
     speakBtnNoText: 'Bitte zuerst ein Wort eingeben',
@@ -2907,6 +2936,80 @@ function speakBtnHTML(text, lang) {
     aria-label="${esc(t('speakBtnAria'))}" title="${esc(t('speakBtnTitle'))}">🔊</button>`;
 }
 
+/**
+ * Returns the HTML for the confirmation-strip "head" — the row that shows
+ *   <word> 🔊 → <translation>  ✏️
+ * Used both by the auto-add multi-variant path in addWord() and by
+ * confirmAddWord() after a single-variant pick. A stable #confirm-head
+ * wrapper lets editTranslationInStrip()/saveTranslationEdit()/
+ * cancelTranslationEdit() swap just this subtree without disturbing the
+ * example sentences rendered below it.
+ */
+function confirmHeadHTML(word, translation) {
+  const safeWord = esc(word);
+  const safeRu   = esc(translation);
+  return `<div class="confirm-head" id="confirm-head"
+            data-word="${safeWord}" data-ru="${safeRu}">
+    <span class="wa-en">${safeWord}</span>
+    ${speakBtnHTML(word)}
+    <span class="wa-arrow">→</span>
+    <span class="wa-ru">${safeRu}</span>
+    <button type="button" class="edit-tr-btn"
+      onclick="editTranslationInStrip(this.closest('.confirm-head').dataset.word, this.closest('.confirm-head').dataset.ru)"
+      aria-label="${esc(t('editTransAria'))}" title="${esc(t('editTransTitle'))}">✏️</button>
+  </div>`;
+}
+
+/** Swaps the confirmation head into an editable form prefilled with the current translation. */
+function editTranslationInStrip(word, currentRu) {
+  const head = document.getElementById('confirm-head');
+  if (!head) return;
+  const safeWord = esc(word);
+  const safeRu   = esc(currentRu);
+  head.innerHTML =
+    `<span class="wa-en">${safeWord}</span>
+     ${speakBtnHTML(word)}
+     <span class="wa-arrow">→</span>
+     <input id="edit-tr-input" type="text" class="edit-tr-input"
+            value="${safeRu}"
+            data-word="${safeWord}" data-original="${safeRu}"
+            placeholder="${esc(t('manualTranslationPlaceholder'))}"
+            aria-label="${esc(t('manualTranslationAria'))}"
+            onkeydown="if(event.key==='Enter'){saveTranslationEdit(this.dataset.word);}
+                       else if(event.key==='Escape'){cancelTranslationEdit(this.dataset.word, this.dataset.original);}" />
+     <button type="button" class="btn btn-primary edit-tr-save"
+       onclick="(function(i){if(i)saveTranslationEdit(i.dataset.word);})(document.getElementById('edit-tr-input'))">${esc(t('saveBtn'))}</button>
+     <button type="button" class="btn btn-ghost edit-tr-cancel"
+       onclick="(function(i){if(i)cancelTranslationEdit(i.dataset.word,i.dataset.original);})(document.getElementById('edit-tr-input'))">${esc(t('cancelBtn'))}</button>`;
+  const inp = document.getElementById('edit-tr-input');
+  if (inp) { inp.focus(); inp.select(); }
+}
+
+/** Persists the edited translation back to state.words and re-renders the strip. */
+function saveTranslationEdit(word) {
+  const inp = document.getElementById('edit-tr-input');
+  if (!inp) return;
+  const next = inp.value.trim();
+  if (!next) { inp.focus(); return; }
+
+  const rec = state.words.find(w => w.english.toLowerCase() === String(word).toLowerCase());
+  if (rec) {
+    rec.russian = next;
+    persist();
+  }
+
+  const head = document.getElementById('confirm-head');
+  if (head) head.outerHTML = confirmHeadHTML(word, next);
+  updateUI();
+  showToast(t('translationUpdated'));
+}
+
+/** Restores the confirmation head without saving. */
+function cancelTranslationEdit(word, originalRu) {
+  const head = document.getElementById('confirm-head');
+  if (head) head.outerHTML = confirmHeadHTML(word, originalRu);
+}
+
 /** Speaks whatever is currently typed in the add-word input. */
 function speakInputWord() {
   const input = document.getElementById('word-input');
@@ -3002,13 +3105,7 @@ async function addWord() {
     // the user can see the meanings and example sentences they just added.
     if (addedEl) {
       addedEl.style.display = 'flex';
-      addedEl.innerHTML =
-        `<div class="picker-added-head">
-           <span class="wa-en">${esc(word)}</span>
-           ${speakBtnHTML(word)}
-           <span class="wa-arrow">→</span>
-           <span class="wa-ru">${esc(joined)}</span>
-         </div>` + examplesHtml;
+      addedEl.innerHTML = confirmHeadHTML(word, joined) + examplesHtml;
     }
     return;
   }
@@ -3073,11 +3170,7 @@ function confirmAddWord(idx) {
   // Replace picker with confirmation strip
   if (addedEl) {
     addedEl.style.display = 'flex';
-    addedEl.innerHTML =
-      `<span class="wa-en">${esc(word)}</span>
-       ${speakBtnHTML(word)}
-       <span class="wa-arrow">→</span>
-       <span class="wa-ru">${esc(russian)}</span>`;
+    addedEl.innerHTML = confirmHeadHTML(word, russian);
   }
 
   updateUI();
