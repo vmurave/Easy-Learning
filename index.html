@@ -246,6 +246,21 @@
       font-size: 1.15rem; line-height: 1; cursor: pointer;
     }
     .speak-btn.speaking { background: var(--primary); color: #fff; border-color: var(--primary); }
+    /* Reusable inline speaker button (variant picker, confirmation strip, flashcard). */
+    .speak-btn-inline {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 32px; height: 32px; padding: 0 .45rem;
+      margin-left: .35rem; vertical-align: middle;
+      background: #fff; border: 1px solid var(--border);
+      border-radius: 6px; font-size: 1rem; line-height: 1; cursor: pointer;
+      transition: background .15s, color .15s, border-color .15s, transform .15s;
+    }
+    .speak-btn-inline:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .speak-btn-inline:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+    .speak-btn-inline.speaking {
+      background: var(--primary); color: #fff; border-color: var(--primary);
+      transform: scale(1.06);
+    }
     .error-msg { color: var(--error); font-size: .85rem; margin-top: .4rem; display: none; }
     /* word-added confirmation strip */
     .word-added {
@@ -2829,22 +2844,24 @@ function setWordSource(val) {
  * Validates input (letters/hyphens only, no duplicates).
  */
 /**
- * Speaks the word currently typed in #word-input using the browser's
- * SpeechSynthesis API in the active source language (en / de).
- * Picks a matching voice when one is installed; otherwise relies on the
- * locale tag and lets the browser fall back gracefully.
+ * Returns the BCP-47 locale tag used for TTS in the active source language.
  */
-function speakInputWord() {
-  const input = document.getElementById('word-input');
-  const btn   = document.getElementById('speak-btn');
-  if (!input || !btn) return;
+function _sourceLangTag() {
+  return currentPair.sourceLang === 'de' ? 'de-DE' : 'en-US';
+}
 
-  const text = (input.value || '').trim();
-  if (!text) {
-    showToast(t('speakBtnNoText'));
-    input.focus();
-    return;
-  }
+/**
+ * Pronounces the given text via the browser's SpeechSynthesis API.
+ * Used by the input speaker button, the translation picker, the
+ * confirmation strip, and the flashcard.
+ *
+ * @param {string} text   — text to speak
+ * @param {string} [lang] — BCP-47 tag; defaults to active source language
+ * @param {HTMLElement} [btn] — optional button to flash a "speaking" state
+ */
+function speakText(text, lang, btn) {
+  text = String(text || '').trim();
+  if (!text) return;
 
   const synth = window.speechSynthesis;
   if (!synth || typeof SpeechSynthesisUtterance === 'undefined') {
@@ -2855,22 +2872,53 @@ function speakInputWord() {
   // Cancel any in-flight utterance so rapid clicks don't queue up.
   synth.cancel();
 
-  const langTag = currentPair.sourceLang === 'de' ? 'de-DE' : 'en-US';
+  const langTag = lang || _sourceLangTag();
   const utter = new SpeechSynthesisUtterance(text);
   utter.lang  = langTag;
   utter.rate  = 0.9;
   utter.pitch = 1;
 
   const voices = synth.getVoices ? synth.getVoices() : [];
+  const prefix = langTag.slice(0, 2).toLowerCase();
   const match  = voices.find(v => v.lang && v.lang.toLowerCase() === langTag.toLowerCase())
-              || voices.find(v => v.lang && v.lang.toLowerCase().startsWith(currentPair.sourceLang));
+              || voices.find(v => v.lang && v.lang.toLowerCase().startsWith(prefix));
   if (match) utter.voice = match;
 
-  const reset = () => btn.classList.remove('speaking');
-  utter.onend = reset;
-  utter.onerror = reset;
-  btn.classList.add('speaking');
+  if (btn) {
+    btn.classList.add('speaking');
+    const reset = () => btn.classList.remove('speaking');
+    utter.onend = reset;
+    utter.onerror = reset;
+  }
   synth.speak(utter);
+}
+
+/**
+ * Returns an HTML snippet for an inline 🔊 button that speaks `text`.
+ * Stores the text/lang in data- attributes so quotes/apostrophes survive
+ * the round-trip through the HTML parser into JS.
+ */
+function speakBtnHTML(text, lang) {
+  const safeText = esc(text);
+  const safeLang = esc(lang || _sourceLangTag());
+  return `<button type="button" class="speak-btn-inline"
+    data-speak-text="${safeText}" data-speak-lang="${safeLang}"
+    onclick="speakText(this.dataset.speakText, this.dataset.speakLang, this)"
+    aria-label="${esc(t('speakBtnAria'))}" title="${esc(t('speakBtnTitle'))}">🔊</button>`;
+}
+
+/** Speaks whatever is currently typed in the add-word input. */
+function speakInputWord() {
+  const input = document.getElementById('word-input');
+  const btn   = document.getElementById('speak-btn');
+  if (!input) return;
+  const text = (input.value || '').trim();
+  if (!text) {
+    showToast(t('speakBtnNoText'));
+    input.focus();
+    return;
+  }
+  speakText(text, _sourceLangTag(), btn);
 }
 
 async function addWord() {
@@ -2957,6 +3005,7 @@ async function addWord() {
       addedEl.innerHTML =
         `<div class="picker-added-head">
            <span class="wa-en">${esc(word)}</span>
+           ${speakBtnHTML(word)}
            <span class="wa-arrow">→</span>
            <span class="wa-ru">${esc(joined)}</span>
          </div>` + examplesHtml;
@@ -2968,7 +3017,7 @@ async function addWord() {
   let chipsHtml;
   if (variants.length) {
     chipsHtml =
-      `<span class="trans-picker-label">${t('tapToAdd', `<strong>${esc(word)}</strong>`)}</span>
+      `<span class="trans-picker-label">${t('tapToAdd', `<strong>${esc(word)}</strong>`)} ${speakBtnHTML(word)}</span>
        <div class="trans-variants" role="group" aria-label="${esc(t('transVariantsAria'))}">
          ${variants.map((v, i) =>
            `<button class="trans-chip" onclick="confirmAddWord(${i})"
@@ -3026,6 +3075,7 @@ function confirmAddWord(idx) {
     addedEl.style.display = 'flex';
     addedEl.innerHTML =
       `<span class="wa-en">${esc(word)}</span>
+       ${speakBtnHTML(word)}
        <span class="wa-arrow">→</span>
        <span class="wa-ru">${esc(russian)}</span>`;
   }
@@ -3637,7 +3687,7 @@ function renderFlashcard() {
       <div class="flashcard" role="region" aria-label="${esc(t('flashcardAria', word.english))}">
 
         <div>
-          <div class="word-en">${esc(word.english)}</div>
+          <div class="word-en">${esc(word.english)} ${speakBtnHTML(word.english)}</div>
           <div class="word-sub">
             ${word.repetitions > 0
               ? esc(t('reviewsLbl', word.repetitions))
