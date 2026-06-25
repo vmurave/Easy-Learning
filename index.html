@@ -2930,7 +2930,6 @@ async function callGroq(prompt, opts = {}) {
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.2,
     max_tokens:  4096,
-    ...(opts.json ? { response_format: { type: 'json_object' } } : {}),
   });
   try {
     console.warn('[AI] Calling Groq proxy…');
