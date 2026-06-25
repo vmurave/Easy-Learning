@@ -18,7 +18,7 @@
 // whenever the app shell (HTML/CSS/JS) changes in a way that needs to
 // reach existing users immediately — e.g. CSP/header changes or critical
 // bug fixes — instead of waiting for natural cache expiry.
-const CACHE_VERSION = 'el20-v12';
+const CACHE_VERSION = 'el20-v13';
 const APP_SHELL = [
   './',
   './index.html',

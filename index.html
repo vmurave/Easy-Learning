@@ -2933,15 +2933,22 @@ async function callGroq(prompt, opts = {}) {
     ...(opts.json ? { response_format: { type: 'json_object' } } : {}),
   });
   try {
+    console.warn('[AI] Calling Groq proxy…');
     const res = await fetch(GROQ_PROXY_ENDPOINT, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body,
     });
-    if (!res.ok) return null;
+    console.warn(`[AI] Groq proxy → HTTP ${res.status}`);
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      console.warn('[AI] Groq error body:', errText);
+      return null;
+    }
     const data = await res.json();
     return data?.choices?.[0]?.message?.content ?? null;
-  } catch (_) {
+  } catch (e) {
+    console.warn('[AI] Groq fetch error:', e);
     return null;
   }
 }
@@ -3002,12 +3009,11 @@ async function callGemini(prompt, opts = {}) {
         headers: { 'Content-Type': 'application/json' },
         body,
       });
+      console.warn(`[AI] Gemini attempt ${attempt + 1} → HTTP ${res.status}`);
       if (res.ok) {
         const data = await res.json();
         return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
       }
-      // Retry once on transient throttling/overload. Track rate-limit so we
-      // know to try the Groq fallback after both attempts are exhausted.
       if (res.status === 429 || res.status === 503) {
         rateLimited = true;
         if (attempt === 0) {
@@ -3016,8 +3022,10 @@ async function callGemini(prompt, opts = {}) {
         }
         break; // both attempts exhausted → fall through to Groq below
       }
-      return null; // non-retriable error (401, 400, etc.) — don't try Groq
-    } catch (_) {
+      console.warn(`[AI] Gemini non-retryable error ${res.status} — no Groq fallback`);
+      return null;
+    } catch (e) {
+      console.warn(`[AI] Gemini fetch error (attempt ${attempt + 1}):`, e);
       if (attempt === 0) {
         await new Promise(r => setTimeout(r, 1500));
         continue;
@@ -3026,7 +3034,10 @@ async function callGemini(prompt, opts = {}) {
     }
   }
   // Gemini quota exhausted — silently fall back to Groq (free, ~14 400 req/day).
-  if (rateLimited) return callGroq(prompt, opts);
+  if (rateLimited) {
+    console.warn('[AI] Gemini rate-limited — falling back to Groq');
+    return callGroq(prompt, opts);
+  }
   return null;
 }
 
