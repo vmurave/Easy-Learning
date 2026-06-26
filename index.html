@@ -3112,17 +3112,18 @@ async function fetchTranslationVariants(word) {
   if (aiAvailable()) {
     try {
       const raw = await callGemini(
-        `List up to 6 distinct ${currentPair.targetName} translations of the ${currentPair.sourceName} word "${word}". ` +
-        `Cover different meanings/parts of speech if applicable. ` +
-        `Return ONLY a JSON array of single-word or short ${currentPair.targetName} translations, no explanations. ` +
-        `Example output format: ["translation1","translation2","translation3"]`,
+        `List 8 to 10 correct ${currentPair.targetName} translations and synonyms for the ${currentPair.sourceName} word "${word}". ` +
+        `Include synonyms and different word forms (adjective, adverb, noun, verb) where applicable. ` +
+        `All variants must be accurate — no loose meanings. ` +
+        `Return ONLY a JSON array of single-word or short ${currentPair.targetName} strings, no explanations. ` +
+        `Example: ["трудный","сложный","тяжёлый","непростой","затруднительный"]`,
         { json: true }
       );
       const arr = parseGeminiJSON(raw);
       if (Array.isArray(arr)) {
         for (const v of arr) {
           if (typeof v === 'string') push(v);
-          if (result.length >= 8) break;
+          if (result.length >= 10) break;
         }
       }
     } catch (_) { /* fall through to MyMemory */ }
@@ -3148,7 +3149,7 @@ async function fetchTranslationVariants(word) {
     for (const m of allMatches) {
       if (parseFloat(m.quality || '0') < 40) break; // sorted desc, no need to continue
       push(m.translation);
-      if (result.length >= 8) break;
+      if (result.length >= 10) break;
     }
   } catch (_) { /* use whatever we already have */ }
 
